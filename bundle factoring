@@ -1,0 +1,28 @@
+const path = require('path')
+const pump = require('pump')
+const browserify = require('browserify')
+const browserPack = require('browser-pack')
+const { groupByFactor, createForEachStream } = require('bify-module-groups')
+const vfs = require('vinyl-fs')
+
+const bundler = browserify(['./entry1.js', './entry2.js'])
+  .plugin('bify-module-groups/plugin')
+
+pump(
+  // perform bundle
+  bundler.bundle(),
+  // split in to module groups
+  groupByFactor({
+    entryFileToLabel: (entry) => path.parse(entry).name
+  }),
+  // handle each module group
+  createForEachStream({
+    onEach: (moduleGroup) => {
+      pump(
+        moduleGroup.stream,
+        browserPack({ raw: true, hasExports: true }),
+        vfs.dest(`./bundles/${moduleGroup.label}.js`),
+      )
+    }
+  }),
+)
